@@ -7,12 +7,12 @@ on:
     branches: [main]
 
 jobs:
-
   build:
     runs-on: ubuntu-latest
     
     steps:
     - uses: actions/checkout@v2
+    
     - name: Use Node.js
       uses: actions/setup-node@v2
       with:
@@ -20,7 +20,12 @@ jobs:
     
     - name: Install client dependencies
       working-directory: ./client
-      run: npm ci
+      run: |
+        if [ -f "package-lock.json" ]; then
+          npm ci
+        else
+          npm install
+        fi
     
     - name: Build client
       working-directory: ./client
@@ -28,16 +33,43 @@ jobs:
     
     - name: Install server dependencies
       working-directory: ./server
-      run: npm ci
+      run: |
+        if [ -f "package-lock.json" ]; then
+          npm ci
+        else
+          npm install
+        fi
     
     - name: Build server
       working-directory: ./server
-      run: npm run build
+      run: |
+        if npm run | grep -q "build"; then
+          npm run build
+        else
+          echo "No build script found for server, skipping..."
+        fi
     
     - name: Build Docker image
-      run: docker build -t my-fullstack-app .
+      run: docker build -t ${{ secrets.DOCKER_USERNAME }}/my-fullstack-app:latest .
     
     - name: Push Docker image to registry
       run: |
         echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
-        docker push my-fullstack-app:latest
+        docker push ${{ secrets.DOCKER_USERNAME }}/my-fullstack-app:latest
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Deploy to server
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.HOST }}
+        username: ${{ secrets.USERNAME }}
+        password: ${{ secrets.PASSWORD }}
+        script: |
+          docker pull ${{ secrets.DOCKER_USERNAME }}/my-fullstack-app:latest
+          docker stop my-fullstack-app || true
+          docker rm my-fullstack-app || true
+          docker run -d -p 80:5000 --name my-fullstack-app ${{ secrets.DOCKER_USERNAME }}/my-fullstack-app:latest
