@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         DOCKER_IMAGE = "my-fullstack-app"
-        REGISTRY = "SandeepSingh01/my-fullstack-app"
+        REGISTRY = "sandeepsingh01/my-fullstack-app"
     }
 
     stages {
